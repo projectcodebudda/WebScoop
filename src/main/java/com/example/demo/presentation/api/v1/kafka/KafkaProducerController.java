@@ -12,8 +12,7 @@ public class KafkaProducerController {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public void sendMessage(String tag, String dataType, String json, String userId) {
-        String message = String.format("%s_%s_%s_%s", tag, dataType, userId, json);
-        kafkaTemplate.send("my-topic", message);
+    public void sendMessage(String json) {
+        kafkaTemplate.send("my-topic", json);
     }
 }

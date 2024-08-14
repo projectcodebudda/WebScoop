@@ -1,10 +1,12 @@
 package com.example.demo.infrastructure.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,106 +19,93 @@ public class KafkaService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void processMessage(String tag, String dataType, String json, String userId) {
+    public void processMessage(String json) {
         try {
-            if ("json".equals(dataType)) {
-                processJsonData(tag, json, userId);
-            } else if ("array".equals(dataType)) {
-                processArrayData(tag, json, userId);
+            JsonNode jsonNode = objectMapper.readTree(json);
+
+            if (jsonNode.isArray()) {
+                processArrayData(jsonNode);
+            } else if (jsonNode.isObject()) {
+                processJsonData(jsonNode);
             } else {
-                throw new IllegalArgumentException("Unsupported data type: " + dataType);
+                insertInvalidData(json);
             }
+        } catch (JsonProcessingException e) {
+            System.err.println("JSON parsing error: " + e.getMessage());
+            insertInvalidData(json);
         } catch (Exception e) {
-            System.err.println("Error processing message with tag: " + tag + " and dataType: " + dataType);
+            System.err.println("Error processing message");
             e.printStackTrace();
+            insertInvalidData(json);
         }
     }
 
-    private void processJsonData(String tag, String json, String userId) throws Exception {
-        JsonNode jsonNode;
-        try {
-            jsonNode = this.objectMapper.readTree(json);
-        } catch (Exception e) {
-            insertInvalidData(json);
+    private void processJsonData(JsonNode jsonNode) throws Exception {
+        String identifier = jsonNode.path("identifier").asText();
+        if (identifier.isEmpty()) {
+            insertInvalidData(jsonNode.toString());
             return;
         }
 
-        if (!jsonNode.isObject()) {
-            insertInvalidData(json);
+        String tableName = getTableName(identifier, "json");
+        createTableIfNotExists(tableName, jsonNode);
+
+        String insertQuery = createInsertQuery(tableName, jsonNode);
+        jdbcTemplate.update(insertQuery);
+
+        insertIntoTableList(tableName, null);
+    }
+
+    private void processArrayData(JsonNode jsonArray) throws Exception {
+        JsonNode firstObject = jsonArray.get(0);
+        String identifier = firstObject.path("identifier").asText();
+
+        if (identifier.isEmpty()) {
+            insertInvalidData(jsonArray.toString());
             return;
         }
 
-        String tableName = getTableName("json");
-        StringBuilder createTableQuery = new StringBuilder("CREATE TABLE ").append(tableName).append(" (");
+        String tableName = getTableName(identifier, "array");
+        createTableIfNotExists(tableName, firstObject);
 
-        jsonNode.fieldNames().forEachRemaining(fieldName -> createTableQuery.append(fieldName).append(" TEXT, "));
-        createTableQuery.setLength(createTableQuery.length() - 2); // Remove trailing comma
-        createTableQuery.append(")");
+        for (JsonNode node : jsonArray) {
+            String insertQuery = createInsertQuery(tableName, node);
+            jdbcTemplate.update(insertQuery);
+        }
 
-        // Create the table
-        jdbcTemplate.execute(createTableQuery.toString());
+        insertIntoTableList(tableName, null);
+    }
 
-        // Insert data
+    private void createTableIfNotExists(String tableName, JsonNode jsonNode) {
+        if (!tableExists(tableName)) {
+            String createTableQuery = String.format("CREATE TABLE %s (", tableName);
+            StringBuilder columns = new StringBuilder();
+            jsonNode.fieldNames().forEachRemaining(fieldName -> columns.append(fieldName).append(" TEXT, "));
+            createTableQuery += columns.substring(0, columns.length() - 2) + ")";
+            jdbcTemplate.execute(createTableQuery);
+        }
+    }
+
+    private String createInsertQuery(String tableName, JsonNode jsonNode) {
         StringBuilder insertQuery = new StringBuilder("INSERT INTO ").append(tableName).append(" (");
         StringBuilder valuesPart = new StringBuilder(" VALUES (");
 
         jsonNode.fieldNames().forEachRemaining(fieldName -> {
             insertQuery.append(fieldName).append(", ");
-            valuesPart.append("'").append(jsonNode.path(fieldName).asText()).append("', ");
+            valuesPart.append("'").append(jsonNode.path(fieldName).asText().replace("'", "''")).append("', ");
         });
 
-        insertQuery.setLength(insertQuery.length() - 2); // Remove trailing comma
-        valuesPart.setLength(valuesPart.length() - 2); // Remove trailing comma
+        insertQuery.setLength(insertQuery.length() - 2);
+        valuesPart.setLength(valuesPart.length() - 2);
         insertQuery.append(")").append(valuesPart).append(")");
 
-        jdbcTemplate.update(insertQuery.toString());
-
-        insertIntoTableList(tableName, userId);
+        return insertQuery.toString();
     }
 
-    private void processArrayData(String tag, String json, String userId) throws Exception {
-        JsonNode jsonNode = objectMapper.readTree(json);
+    public void insertInvalidData(String json) {
+        String invalidDataTableName = getTableName("invalid", "data");
+        jdbcTemplate.update("INSERT INTO table_list (tablename) VALUES (?)", invalidDataTableName);
 
-        if (!jsonNode.isArray()) {
-            insertInvalidData(json);
-            return;
-        }
-
-        JsonNode firstObject = jsonNode.get(0);
-        if (!firstObject.isObject()) {
-            insertInvalidData(json);
-            return;
-        }
-
-        String tableName = getTableName("array");
-        StringBuilder createTableQuery = new StringBuilder("CREATE TABLE ").append(tableName).append(" (");
-
-        firstObject.fieldNames().forEachRemaining(fieldName -> createTableQuery.append(fieldName).append(" TEXT, "));
-        createTableQuery.setLength(createTableQuery.length() - 2); // Remove trailing comma
-        createTableQuery.append(")");
-
-        jdbcTemplate.execute(createTableQuery.toString());
-
-        for (JsonNode node : jsonNode) {
-            StringBuilder insertQuery = new StringBuilder("INSERT INTO ").append(tableName).append(" (");
-            StringBuilder valuesPart = new StringBuilder(" VALUES (");
-
-            firstObject.fieldNames().forEachRemaining(fieldName -> {
-                insertQuery.append(fieldName).append(", ");
-                valuesPart.append("'").append(node.path(fieldName).asText()).append("', ");
-            });
-
-            insertQuery.setLength(insertQuery.length() - 2); // Remove trailing comma
-            valuesPart.setLength(valuesPart.length() - 2); // Remove trailing comma
-            insertQuery.append(")").append(valuesPart).append(")");
-
-            jdbcTemplate.update(insertQuery.toString());
-        }
-
-        insertIntoTableList(tableName, userId);
-    }
-
-    private void insertInvalidData(String json) {
         Integer latestId = getLastTableId();
 
         if (latestId == null) {
@@ -127,13 +116,16 @@ public class KafkaService {
         String insertInvalidDataQuery = "INSERT INTO invalid_data (tableid, data) VALUES (?, ?)";
         jdbcTemplate.update(insertInvalidDataQuery, latestId, json);
     }
+    
 
-    private String getTableName(String dataType) {
+    private String getTableName(String identifier, String dataType) {
         Integer latestId = getLastTableId();
         if (latestId == null) {
-            latestId = 0; // 기본값으로 0을 사용
+            latestId = 0;
         }
-        return String.format("table_%s_%d", dataType, latestId + 1); // ID를 +1
+        
+        String safeIdentifier = identifier.replace("-", "_");
+        return String.format("%s_%s_%d", safeIdentifier, dataType, latestId + 1);
     }
 
     private Integer getLastTableId() {
@@ -141,7 +133,7 @@ public class KafkaService {
             String query = "SELECT id FROM table_list ORDER BY id DESC LIMIT 1";
             return jdbcTemplate.queryForObject(query, Integer.class);
         } catch (EmptyResultDataAccessException e) {
-            return null; // No entries found
+            return null;
         }
     }
 
@@ -150,6 +142,20 @@ public class KafkaService {
             jdbcTemplate.update("INSERT INTO table_list (tablename, userid) VALUES (?, ?)", tableName, userId);
         } catch (DuplicateKeyException e) {
             System.err.println("Duplicate entry found for table_list with table name: " + tableName);
+        }
+    }
+
+    private boolean tableExists(String tableName) {
+        try {
+            return jdbcTemplate.execute((StatementCallback<Boolean>) stmt -> {
+                try (java.sql.ResultSet rs = stmt.executeQuery("SELECT 1 FROM " + tableName + " LIMIT 1")) {
+                    return true;
+                } catch (java.sql.SQLException e) {
+                    return false;
+                }
+            });
+        } catch (Exception e) {
+            return false;
         }
     }
 }

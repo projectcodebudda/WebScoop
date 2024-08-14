@@ -5,14 +5,19 @@ import java.util.concurrent.CountDownLatch;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Service
 public class KafkaConsumer {
 
     private final KafkaService kafkaService;
+    private final ObjectMapper objectMapper;
     private CountDownLatch latch;
 
     public KafkaConsumer(KafkaService kafkaService) {
         this.kafkaService = kafkaService;
+        this.objectMapper = new ObjectMapper(); 
     }
 
     public void setLatch(CountDownLatch latch) {
@@ -24,33 +29,27 @@ public class KafkaConsumer {
         try {
             System.out.println("Received message: " + message);
 
-            // Extract tag, dataType, userId, and json from the message
-            String[] parts = message.split("_", 4);
+            if (message.startsWith("{") || message.startsWith("[")) {
+                JsonNode jsonNode = objectMapper.readTree(message);
 
-            if (parts.length == 4) {
-                String tag = parts[0];
-                String dataType = parts[1];
-                String userId = parts[2];
-                String json = parts[3];
-
-                // Log for debugging
-                System.out.println("Tag: " + tag);
-                System.out.println("DataType: " + dataType);
-                System.out.println("UserId: " + userId);
-                System.out.println("JSON: " + json);
-
-                // Process message
-                kafkaService.processMessage(tag, dataType, json, userId);
+                if (jsonNode.isObject() || jsonNode.isArray()) {
+                    String json = jsonNode.toString();
+                    kafkaService.processMessage(json);
+                } else {
+                    System.err.println("Received message is not in valid JSON format: " + message);
+                    kafkaService.insertInvalidData(message);
+                }
             } else {
-                System.err.println("Invalid message format: " + message);
+                System.err.println("Received message is not in valid JSON format: " + message);
+                kafkaService.insertInvalidData(message);
             }
         } catch (Exception e) {
-            // Handle exceptions or log the error
+        	kafkaService.insertInvalidData(message);
             System.err.println("Error processing Kafka message");
             e.printStackTrace();
         } finally {
             if (latch != null) {
-                latch.countDown(); // Signal message reception
+                latch.countDown();
             }
         }
     }

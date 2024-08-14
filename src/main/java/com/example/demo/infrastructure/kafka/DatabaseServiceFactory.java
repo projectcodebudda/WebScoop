@@ -1,9 +1,7 @@
 package com.example.demo.infrastructure.kafka;
 
 import javax.sql.DataSource;
-
 import org.springframework.stereotype.Component;
-
 import com.example.demo.infrastructure.kafka.impl.PostgreSQLDatabaseServiceImpl;
 
 @Component
