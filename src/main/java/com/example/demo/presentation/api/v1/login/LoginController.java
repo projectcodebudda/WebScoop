@@ -1,7 +1,8 @@
-package com.example.demo.presentation.login;
+package com.example.demo.presentation.api.v1.login;
 
-import com.example.demo.application.UserService;
-import com.example.demo.domain.User;
+import com.example.demo.application.login.UserService;
+import com.example.demo.domain.login.User;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
