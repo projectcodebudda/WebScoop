@@ -19,16 +19,38 @@ public class KafkaService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    private enum JsonType {
+        ARRAY,
+        OBJECT,
+        INVALID
+    }
+
+    private JsonType determineJsonType(JsonNode jsonNode) {
+        if (jsonNode.isArray()) {
+            return JsonType.ARRAY;
+        } else if (jsonNode.isObject()) {
+            return JsonType.OBJECT;
+        } else {
+            return JsonType.INVALID;
+        }
+    }
+
     public void processMessage(String json) {
         try {
             JsonNode jsonNode = objectMapper.readTree(json);
+            JsonType jsonType = determineJsonType(jsonNode);
 
-            if (jsonNode.isArray()) {
-                processArrayData(jsonNode);
-            } else if (jsonNode.isObject()) {
-                processJsonData(jsonNode);
-            } else {
-                insertInvalidData(json);
+            switch (jsonType) {
+                case ARRAY:
+                    processArrayData(jsonNode);
+                    break;
+                case OBJECT:
+                    processJsonData(jsonNode);
+                    break;
+                case INVALID:
+                default:
+                    insertInvalidData(json);
+                    break;
             }
         } catch (JsonProcessingException e) {
             System.err.println("JSON parsing error: " + e.getMessage());
