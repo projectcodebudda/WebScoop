@@ -45,8 +45,6 @@ public class KafkaConsumer {
             }
         } catch (Exception e) {
         	kafkaService.insertInvalidData(message);
-            System.err.println("Error processing Kafka message");
-            e.printStackTrace();
         } finally {
             if (latch != null) {
                 latch.countDown();

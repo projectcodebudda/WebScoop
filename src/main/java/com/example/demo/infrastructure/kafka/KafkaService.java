@@ -1,13 +1,16 @@
 package com.example.demo.infrastructure.kafka;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.PreparedStatement;
+
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.StatementCallback;
 import org.springframework.stereotype.Service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class KafkaService {
@@ -138,14 +141,13 @@ public class KafkaService {
         String insertInvalidDataQuery = "INSERT INTO invalid_data (tableid, data) VALUES (?, ?)";
         jdbcTemplate.update(insertInvalidDataQuery, latestId, json);
     }
-    
 
     private String getTableName(String identifier, String dataType) {
         Integer latestId = getLastTableId();
         if (latestId == null) {
             latestId = 0;
         }
-        
+
         String safeIdentifier = identifier.replace("-", "_");
         return String.format("%s_%s_%d", safeIdentifier, dataType, latestId + 1);
     }
@@ -160,10 +162,24 @@ public class KafkaService {
     }
 
     private void insertIntoTableList(String tableName, String userId) {
+        syncSequenceWithLastId();  // 시퀀스와 테이블의 마지막 ID를 동기화
+
         try {
             jdbcTemplate.update("INSERT INTO table_list (tablename, userid) VALUES (?, ?)", tableName, userId);
         } catch (DuplicateKeyException e) {
             System.err.println("Duplicate entry found for table_list with table name: " + tableName);
+        }
+    }
+
+    private void syncSequenceWithLastId() {
+        Integer lastId = getLastTableId();
+        if (lastId != null) {
+            String query = "SELECT setval('table_list_id_seq', ?)";
+            jdbcTemplate.execute(query, (PreparedStatement ps) -> {
+                ps.setInt(1, lastId);
+                ps.executeQuery();
+                return null;  
+            });
         }
     }
 
