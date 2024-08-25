@@ -3,6 +3,7 @@
 <lang="ko"
       xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+      
     <head>
         <meta charset="utf-8">
         <title> WebScoop </title>
@@ -10,31 +11,24 @@
         <th:block th:replace="~{fragments/config::configFragment}" ></th:block>
     </head>
     
-    <body>
-	<div class="container-fluid position-relative d-flex p-0">
+    <body class="sb-nav-fixed">
 		
-    <!-- header.html -->
-    <header th:replace="~{fragments/header::headerFragment}"></header>
+	<!-- nav.html -->
+	<div th:replace="~{fragments/nav::navFragment}"></div>
     
+    <div id="layoutSidenav">
     <!-- sidebar.html -->
 	<div th:replace="~{fragments/sidebar::sideFragment}"></div>
 
-	<div class="content">
-	
-	<!-- nav.html -->
-	<div th:replace="~{fragments/nav::navFragment}"></div>
-	
-    <div layout:fragment="content"></div>
+	<div id="layoutSidenav_content">
 
+    <div layout:fragment="content"></div>
+    
 	<!-- footer.html -->
     <footer th:replace="~{fragments/footer::footerFragment}"></footer>
     
-    </div>
-    
-    
-    <!-- Back to Top -->
-    <a href="#" class="btn btn-lg btn-primary btn-lg-square back-to-top"><i class="bi bi-arrow-up"></i></a>
-    
+	</div>
+	
     </div>
     
     <!-- JavaScript Libraries -->
@@ -43,6 +37,5 @@
     <script src="assets/demo/chart-bar-demo.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     <script src="js/datatables-simple-demo.js"></script>
-	
 	
     </body>
