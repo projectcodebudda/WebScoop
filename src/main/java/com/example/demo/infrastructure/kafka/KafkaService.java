@@ -12,15 +12,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class KafkaService {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
-
-    public KafkaService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     private enum JsonType {
         ARRAY,
@@ -45,40 +44,40 @@ public class KafkaService {
 
             switch (jsonType) {
                 case ARRAY:
-                    processArrayData(jsonNode);
+                    this.processArrayData(jsonNode);
                     break;
                 case OBJECT:
-                    processJsonData(jsonNode);
+                    this.processJsonData(jsonNode);
                     break;
                 case INVALID:
                 default:
-                    insertInvalidData(json);
+                    this.insertInvalidData(json);
                     break;
             }
         } catch (JsonProcessingException e) {
             System.err.println("JSON parsing error: " + e.getMessage());
-            insertInvalidData(json);
+            this.insertInvalidData(json);
         } catch (Exception e) {
             System.err.println("Error processing message");
             e.printStackTrace();
-            insertInvalidData(json);
+            this.insertInvalidData(json);
         }
     }
 
     private void processJsonData(JsonNode jsonNode) throws Exception {
         String identifier = jsonNode.path("identifier").asText();
         if (identifier.isEmpty()) {
-            insertInvalidData(jsonNode.toString());
+            this.insertInvalidData(jsonNode.toString());
             return;
         }
 
         String tableName = getTableName(identifier, "json");
-        createTableIfNotExists(tableName, jsonNode);
+        this.createTableIfNotExists(tableName, jsonNode);
 
         String insertQuery = createInsertQuery(tableName, jsonNode);
-        jdbcTemplate.update(insertQuery);
+        this.jdbcTemplate.update(insertQuery);
 
-        insertIntoTableList(tableName, null);
+        this.insertIntoTableList(tableName, null);
     }
 
     private void processArrayData(JsonNode jsonArray) throws Exception {
@@ -86,19 +85,19 @@ public class KafkaService {
         String identifier = firstObject.path("identifier").asText();
 
         if (identifier.isEmpty()) {
-            insertInvalidData(jsonArray.toString());
+            this.insertInvalidData(jsonArray.toString());
             return;
         }
 
         String tableName = getTableName(identifier, "array");
-        createTableIfNotExists(tableName, firstObject);
+        this.createTableIfNotExists(tableName, firstObject);
 
         for (JsonNode node : jsonArray) {
             String insertQuery = createInsertQuery(tableName, node);
-            jdbcTemplate.update(insertQuery);
+            this.jdbcTemplate.update(insertQuery);
         }
 
-        insertIntoTableList(tableName, null);
+        this.insertIntoTableList(tableName, null);
     }
 
     private void createTableIfNotExists(String tableName, JsonNode jsonNode) {
@@ -107,7 +106,7 @@ public class KafkaService {
             StringBuilder columns = new StringBuilder();
             jsonNode.fieldNames().forEachRemaining(fieldName -> columns.append(fieldName).append(" TEXT, "));
             createTableQuery += columns.substring(0, columns.length() - 2) + ")";
-            jdbcTemplate.execute(createTableQuery);
+            this.jdbcTemplate.execute(createTableQuery);
         }
     }
 
@@ -129,7 +128,7 @@ public class KafkaService {
 
     public void insertInvalidData(String json) {
         String invalidDataTableName = getTableName("invalid", "data");
-        jdbcTemplate.update("INSERT INTO table_list (tablename) VALUES (?)", invalidDataTableName);
+        this.jdbcTemplate.update("INSERT INTO table_list (tablename) VALUES (?)", invalidDataTableName);
 
         Integer latestId = getLastTableId();
 
@@ -139,7 +138,7 @@ public class KafkaService {
         }
 
         String insertInvalidDataQuery = "INSERT INTO invalid_data (tableid, data) VALUES (?, ?)";
-        jdbcTemplate.update(insertInvalidDataQuery, latestId, json);
+        this.jdbcTemplate.update(insertInvalidDataQuery, latestId, json);
     }
 
     private String getTableName(String identifier, String dataType) {
@@ -165,7 +164,7 @@ public class KafkaService {
         syncSequenceWithLastId();  // 시퀀스와 테이블의 마지막 ID를 동기화
 
         try {
-            jdbcTemplate.update("INSERT INTO table_list (tablename, userid) VALUES (?, ?)", tableName, userId);
+            this.jdbcTemplate.update("INSERT INTO table_list (tablename, userid) VALUES (?, ?)", tableName, userId);
         } catch (DuplicateKeyException e) {
             System.err.println("Duplicate entry found for table_list with table name: " + tableName);
         }
@@ -175,7 +174,7 @@ public class KafkaService {
         Integer lastId = getLastTableId();
         if (lastId != null) {
             String query = "SELECT setval('table_list_id_seq', ?)";
-            jdbcTemplate.execute(query, (PreparedStatement ps) -> {
+            this.jdbcTemplate.execute(query, (PreparedStatement ps) -> {
                 ps.setInt(1, lastId);
                 ps.executeQuery();
                 return null;  
@@ -185,7 +184,7 @@ public class KafkaService {
 
     private boolean tableExists(String tableName) {
         try {
-            return jdbcTemplate.execute((StatementCallback<Boolean>) stmt -> {
+            return this.jdbcTemplate.execute((StatementCallback<Boolean>) stmt -> {
                 try (java.sql.ResultSet rs = stmt.executeQuery("SELECT 1 FROM " + tableName + " LIMIT 1")) {
                     return true;
                 } catch (java.sql.SQLException e) {

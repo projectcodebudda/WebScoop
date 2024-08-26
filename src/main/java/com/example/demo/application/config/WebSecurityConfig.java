@@ -96,6 +96,7 @@ public class WebSecurityConfig {
     @Bean  
     public WebSecurityCustomizer webSecurityCustomizer() {  
         return (web) -> web.ignoring().requestMatchers(
+        		"/api/v1/**",
                 "/swagger-ui/**",
                 "/v3/api-docs/**",
                 "/js/**",
