@@ -24,6 +24,30 @@ public class ViewController {
 		return "index";
 	}
 	
+	@GetMapping("/tableLists")
+	public String getTableListPage(Model model, Authentication authentication) {
+		UserEntity user = this.userService.getUserData(authentication.getName());
+		model.addAttribute("user", user);
+		
+		return "table_list";
+	}
+	
+	@GetMapping("/configures")
+	public String getConfigPage(Model model, Authentication authentication) {
+		UserEntity user = this.userService.getUserData(authentication.getName());
+		model.addAttribute("user", user);
+		
+		return "configures";
+	}
+	
+	@GetMapping("/admin")
+	public String getAdminPage(Model model, Authentication authentication) {
+		UserEntity user = this.userService.getUserData(authentication.getName());
+		model.addAttribute("user", user);
+		
+		return "admin";
+	}
+	
 	@GetMapping("/login_page")
 	public String getLoginPage(Model model) {
 		return "signin";

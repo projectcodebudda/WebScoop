@@ -13,6 +13,8 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 
 import com.example.demo.presentation.api.v1.kafka.KafkaProducerController;
 
+import jakarta.annotation.PostConstruct;
+
 @SpringBootTest
 @EmbeddedKafka(partitions = 1, topics = {"my-topic"})
 public class KafkaTest {
@@ -23,20 +25,19 @@ public class KafkaTest {
     @Autowired
     private KafkaConsumer kafkaConsumer;
 
-
     private CountDownLatch latch;
 
-    @BeforeEach
+    @PostConstruct
     public void setup() {
-        latch = new CountDownLatch(1); 
-        kafkaConsumer.setLatch(latch); 
+        this.latch = new CountDownLatch(1); 
+        this.kafkaConsumer.setLatch(this.latch); 
     }
 
     @Test
     public void testProcessAndSaveValidJson() throws Exception {
 
         String validJson = "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"N/A\",\"cLass\":\"25,000원\"}";
-        kafkaProducerController.sendMessage(validJson);
+        this.kafkaProducerController.sendMessage(validJson);
 
         boolean received = this.latch.await(10, TimeUnit.SECONDS); 
         assertTrue(received, "Message was not received by the consumer");
@@ -51,7 +52,7 @@ public class KafkaTest {
                                 "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class\":\"레고 어벤져스 이터널스 배트맨슈퍼맨 등등 일괄\"}," +
                                 "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class\":\"레고 닌자고 사무카이 팝니다\"}," +
                                 "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class\":\"레고 10307 misb 판매한니다\"}]";
-        kafkaProducerController.sendMessage(validArrayJson);
+        this.kafkaProducerController.sendMessage(validArrayJson);
 
         boolean received = this.latch.await(10, TimeUnit.SECONDS);
         assertTrue(received, "Message was not received by the consumer");
@@ -65,7 +66,7 @@ public class KafkaTest {
                               "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class\":\"레고 어벤져스 이터널스 배트맨슈퍼맨 등등 일괄\"}," +
                               "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class\":\"레고 닌자고 사무카이 팝니다\"}," +
                               "{\"url\":\"http://localhost:8080/crawl/examplePg\",\"identifier\":\"store-lego\",\"element\":\"h2\",\"class: \"레고 10307 misb 판매한니다\"}]"; // 잘못된 JSON 구문
-        kafkaProducerController.sendMessage(invalidJson);
+        this.kafkaProducerController.sendMessage(invalidJson);
 
         boolean received = this.latch.await(10, TimeUnit.SECONDS);
         assertTrue(received, "Message was not received by the consumer");

@@ -8,18 +8,18 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class KafkaConsumer {
 
     private final KafkaService kafkaService;
     private final ObjectMapper objectMapper;
     private CountDownLatch latch;
-
-    public KafkaConsumer(KafkaService kafkaService) {
-        this.kafkaService = kafkaService;
-        this.objectMapper = new ObjectMapper(); 
-    }
-
+    
     public void setLatch(CountDownLatch latch) {
         this.latch = latch;
     }
@@ -27,27 +27,27 @@ public class KafkaConsumer {
     @KafkaListener(topics = "my-topic", groupId = "test-group")
     public void onMessage(String message) {
         try {
-            System.out.println("Received message: " + message);
+            log.info("Received message: " + message);
 
             if (message.startsWith("{") || message.startsWith("[")) {
                 JsonNode jsonNode = objectMapper.readTree(message);
 
                 if (jsonNode.isObject() || jsonNode.isArray()) {
                     String json = jsonNode.toString();
-                    kafkaService.processMessage(json);
+                    this.kafkaService.processMessage(json);
                 } else {
-                    System.err.println("Received message is not in valid JSON format: " + message);
-                    kafkaService.insertInvalidData(message);
+                    log.error("Received message is not in valid JSON format: " + message);
+                    this.kafkaService.insertInvalidData(message);
                 }
             } else {
-                System.err.println("Received message is not in valid JSON format: " + message);
-                kafkaService.insertInvalidData(message);
+                log.error("Received message is not in valid JSON format: " + message);
+                this.kafkaService.insertInvalidData(message);
             }
         } catch (Exception e) {
-        	kafkaService.insertInvalidData(message);
+        	this.kafkaService.insertInvalidData(message);
         } finally {
-            if (latch != null) {
-                latch.countDown();
+            if (this.latch != null) {
+                this.latch.countDown();
             }
         }
     }
