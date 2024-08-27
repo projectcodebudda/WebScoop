@@ -29,4 +29,8 @@ public class ViewController {
 		return "signin";
 	}
 	
+	@GetMapping("/crawl_main_page")
+	public String getCrawlPage() {
+		return "crawl";
+	}
 }
